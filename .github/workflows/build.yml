@@ -1,0 +1,54 @@
+name: Build Paperless-ngx with Swedish OCR
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # var 6:e timme
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: paperless-ngx-swe
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Get latest Paperless-ngx version
+        id: version
+        run: |
+          VERSION=$(curl -s https://api.github.com/repos/paperless-ngx/paperless-ngx/releases/latest | jq -r .tag_name)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if image already exists
+        id: check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://ghcr.io/v2/${{ github.repository_owner }}/paperless-ngx-swe/manifests/${{ steps.version.outputs.version }})
+          echo "exists=$STATUS" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.exists != '200'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: steps.check.outputs.exists != '200'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        if: steps.check.outputs.exists != '200'
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/paperless-ngx-swe:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/paperless-ngx-swe:latest
+          build-args: |
+            PAPERLESS_VERSION=${{ steps.version.outputs.version }}
