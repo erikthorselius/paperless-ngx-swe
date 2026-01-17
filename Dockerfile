@@ -5,6 +5,8 @@ USER root
 
 RUN apt-get update \
  && apt-get install -y tesseract-ocr-swe \
+      ripmime \
+      mpack \
  && rm -rf /var/lib/apt/lists/*
 
 USER paperless
